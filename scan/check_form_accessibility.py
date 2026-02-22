@@ -27,9 +27,9 @@ SELECT_PATTERN = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 
-# Label patterns
+# Label patterns (matches both HTML for= and JSX htmlFor=)
 LABEL_FOR_PATTERN = re.compile(
-    r'<label\b[^>]*\bfor\s*=\s*["\']([^"\']+)["\']',
+    r'<label\b[^>]*\b(?:html[Ff]or|for)\s*=\s*["\']([^"\']+)["\']',
     re.IGNORECASE,
 )
 
@@ -99,6 +99,7 @@ def check_form_accessibility(files: List[Path]) -> Dict:
 
     has_any_form_inputs = False
     has_submit_mechanism = False
+    total_wrapped_count = 0
 
     for filepath in files:
         content = filepath.read_text(encoding="utf-8", errors="ignore")
@@ -107,8 +108,8 @@ def check_form_accessibility(files: List[Path]) -> Dict:
         # Collect all label[for] ids in this file
         label_for_ids = set(LABEL_FOR_PATTERN.findall(content))
 
-        # Find wrapping labels
-        wrapped_inputs = LABEL_WRAP_PATTERN.findall(content)
+        # Find wrapping labels per-file (avoid cross-file false positives)
+        total_wrapped_count += len(LABEL_WRAP_PATTERN.findall(content))
 
         # Check submit mechanisms
         if (SUBMIT_BUTTON_PATTERN.search(content)
@@ -185,14 +186,10 @@ def check_form_accessibility(files: List[Path]) -> Dict:
             if _has_attr(attrs, "required") or _has_attr(attrs, "aria-required"):
                 inputs_with_required_attr += 1
 
-    # Add wrapped label count (rough estimate)
-    wrapped_count = len(LABEL_WRAP_PATTERN.findall("".join(
-        f.read_text(encoding="utf-8", errors="ignore") for f in files
-    ))) if files else 0
     # Don't double-count: wrapped labels supplement for/id labels
     remaining_unlabeled = all_inputs_count - labeled_inputs
-    if remaining_unlabeled > 0 and wrapped_count > 0:
-        additionally_labeled = min(remaining_unlabeled, wrapped_count)
+    if remaining_unlabeled > 0 and total_wrapped_count > 0:
+        additionally_labeled = min(remaining_unlabeled, total_wrapped_count)
         labeled_inputs += additionally_labeled
 
     # --- Aggregate checks ---

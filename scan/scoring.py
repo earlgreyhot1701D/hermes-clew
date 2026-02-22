@@ -28,8 +28,11 @@ def calculate_total_score(category_results: Dict[str, Dict]) -> int:
 
     Each category: (passed / total) * weight_points.
     Categories with 0 total checks are skipped (don't penalize for N/A).
+    Scores are normalized to 100 based on applicable weight so that
+    projects with N/A categories can still achieve a perfect score.
     """
-    total = 0
+    earned = 0
+    applicable_weight = 0
 
     for category, result in category_results.items():
         if category not in WEIGHTS:
@@ -42,16 +45,22 @@ def calculate_total_score(category_results: Dict[str, Dict]) -> int:
         if total_checks == 0:
             continue
 
+        applicable_weight += max_points
         category_score = (passed / total_checks) * max_points
-        total += category_score
+        earned += category_score
 
-    return round(total)
+    if applicable_weight == 0:
+        return 0
+
+    # Normalize to 100 so N/A categories don't cap the score
+    return round((earned / applicable_weight) * 100)
 
 
 def get_score_rating(score: int) -> str:
     """Return the human-readable rating for a given score."""
+    clamped = max(0, min(100, score))
     for _key, (low, high, label) in SCORE_RANGES.items():
-        if low <= score <= high:
+        if low <= clamped <= high:
             return label
     return "Unknown"
 

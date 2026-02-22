@@ -1,0 +1,824 @@
+From 6c769d0a69dd3b63d1d4c77acd052f410e03d28d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 22 Feb 2026 18:17:41 +0000
+Subject: [PATCH] fix: implement all code review findings (P1-P3)
+
+P1: fix double-read cross-file bug, add JSX htmlFor support, add JSX href={} support
+P2: normalize N/A scoring, surface skipped files, fix weak assertion, add security tests, add report_prompt test
+P3: add CLI test, logging, substring link matching, deterministic sort, title first-file, defensive clamping
+
+https://claude.ai/code/session_017YaQVDkwwCCsQAsCA2nKXF
+---
+ scan/check_form_accessibility.py       | 17 ++---
+ scan/check_link_navigation.py          | 27 +++++---
+ scan/check_structured_data.py          | 15 ++--
+ scan/file_finder.py                    | 17 +++--
+ scan/scanner.py                        | 22 +++++-
+ scan/scoring.py                        | 17 +++--
+ tests/test_check_form_accessibility.py | 37 ++++++++++
+ tests/test_check_link_navigation.py    | 34 ++++++++++
+ tests/test_file_finder.py              | 84 ++++++++++++++++++++---
+ tests/test_integration.py              |  8 +++
+ tests/test_report_prompt.py            | 94 ++++++++++++++++++++++++++
+ tests/test_scanner.py                  | 46 +++++++++++++
+ tests/test_scoring.py                  | 53 ++++++++++++---
+ 13 files changed, 413 insertions(+), 58 deletions(-)
+ create mode 100644 tests/test_report_prompt.py
+ create mode 100644 tests/test_scanner.py
+
+diff --git a/scan/check_form_accessibility.py b/scan/check_form_accessibility.py
+index 1c1c4d0..b38fcac 100644
+--- a/scan/check_form_accessibility.py
++++ b/scan/check_form_accessibility.py
+@@ -27,9 +27,9 @@ SELECT_PATTERN = re.compile(
+     re.IGNORECASE | re.DOTALL,
+ )
+ 
+-# Label patterns
++# Label patterns (matches both HTML for= and JSX htmlFor=)
+ LABEL_FOR_PATTERN = re.compile(
+-    r'<label\b[^>]*\bfor\s*=\s*["\']([^"\']+)["\']',
++    r'<label\b[^>]*\b(?:html[Ff]or|for)\s*=\s*["\']([^"\']+)["\']',
+     re.IGNORECASE,
+ )
+ 
+@@ -99,6 +99,7 @@ def check_form_accessibility(files: List[Path]) -> Dict:
+ 
+     has_any_form_inputs = False
+     has_submit_mechanism = False
++    total_wrapped_count = 0
+ 
+     for filepath in files:
+         content = filepath.read_text(encoding="utf-8", errors="ignore")
+@@ -107,8 +108,8 @@ def check_form_accessibility(files: List[Path]) -> Dict:
+         # Collect all label[for] ids in this file
+         label_for_ids = set(LABEL_FOR_PATTERN.findall(content))
+ 
+-        # Find wrapping labels
+-        wrapped_inputs = LABEL_WRAP_PATTERN.findall(content)
++        # Find wrapping labels per-file (avoid cross-file false positives)
++        total_wrapped_count += len(LABEL_WRAP_PATTERN.findall(content))
+ 
+         # Check submit mechanisms
+         if (SUBMIT_BUTTON_PATTERN.search(content)
+@@ -185,14 +186,10 @@ def check_form_accessibility(files: List[Path]) -> Dict:
+             if _has_attr(attrs, "required") or _has_attr(attrs, "aria-required"):
+                 inputs_with_required_attr += 1
+ 
+-    # Add wrapped label count (rough estimate)
+-    wrapped_count = len(LABEL_WRAP_PATTERN.findall("".join(
+-        f.read_text(encoding="utf-8", errors="ignore") for f in files
+-    ))) if files else 0
+     # Don't double-count: wrapped labels supplement for/id labels
+     remaining_unlabeled = all_inputs_count - labeled_inputs
+-    if remaining_unlabeled > 0 and wrapped_count > 0:
+-        additionally_labeled = min(remaining_unlabeled, wrapped_count)
++    if remaining_unlabeled > 0 and total_wrapped_count > 0:
++        additionally_labeled = min(remaining_unlabeled, total_wrapped_count)
+         labeled_inputs += additionally_labeled
+ 
+     # --- Aggregate checks ---
+diff --git a/scan/check_link_navigation.py b/scan/check_link_navigation.py
+index 1793f30..4f9ea05 100644
+--- a/scan/check_link_navigation.py
++++ b/scan/check_link_navigation.py
+@@ -18,19 +18,24 @@ ANCHOR_PATTERN = re.compile(
+ )
+ 
+ # Generic/vague link text patterns (case-insensitive match against inner text)
+-GENERIC_LINK_TEXT = {
+-    "click here",
++# Short single words are matched exactly; multi-word phrases use startswith
++# so "Learn More About Pricing" is caught but "Actual Descriptive Link" is not.
++GENERIC_LINK_TEXT_EXACT = {
+     "here",
+-    "learn more",
+-    "read more",
+     "more",
+     "link",
+     "this",
+     "go",
+ }
++GENERIC_LINK_TEXT_PREFIX = [
++    "click here",
++    "learn more",
++    "read more",
++]
+ 
+-# href attribute
++# href attribute (HTML quotes and JSX curly braces)
+ HREF_PATTERN = re.compile(r'\bhref\s*=\s*["\']([^"\']*)["\']', re.IGNORECASE)
++HREF_JSX_PATTERN = re.compile(r'\bhref\s*=\s*\{', re.IGNORECASE)
+ 
+ # Anchor with onClick but no href (JS-only navigation)
+ ANCHOR_ONCLICK_NO_HREF = re.compile(
+@@ -88,7 +93,12 @@ def check_link_navigation(files: List[Path]) -> Dict:
+             link_text = _extract_text(inner_html).lower()
+ 
+             # Check 1: Generic link text
+-            if link_text in GENERIC_LINK_TEXT:
++            # Exact match for short words, startswith for multi-word phrases
++            is_generic = (
++                link_text in GENERIC_LINK_TEXT_EXACT
++                or any(link_text.startswith(prefix) for prefix in GENERIC_LINK_TEXT_PREFIX)
++            )
++            if is_generic:
+                 generic_text_links += 1
+                 findings.append({
+                     "check": "descriptive_link_text",
+@@ -99,7 +109,8 @@ def check_link_navigation(files: List[Path]) -> Dict:
+ 
+             # Check 2: href attribute
+             href_match = HREF_PATTERN.search(attrs)
+-            if not href_match:
++            has_jsx_href = HREF_JSX_PATTERN.search(attrs)
++            if not href_match and not has_jsx_href:
+                 links_without_href += 1
+                 findings.append({
+                     "check": "link_has_href",
+@@ -107,7 +118,7 @@ def check_link_navigation(files: List[Path]) -> Dict:
+                     "detail": f"{fname}: <a> tag without href attribute. Agents can't follow this link.",
+                     "file": fname,
+                 })
+-            elif href_match.group(1).strip().lower() in NONFUNCTIONAL_HREFS:
++            elif href_match and href_match.group(1).strip().lower() in NONFUNCTIONAL_HREFS:
+                 links_with_nonfunctional_href += 1
+                 findings.append({
+                     "check": "link_has_href",
+diff --git a/scan/check_structured_data.py b/scan/check_structured_data.py
+index 84506e3..31675de 100644
+--- a/scan/check_structured_data.py
++++ b/scan/check_structured_data.py
+@@ -91,13 +91,14 @@ def check_structured_data(files: List[Path]) -> Dict:
+             has_og_tags = True
+             og_count += len(og_matches)
+ 
+-        # Check 3: Title
+-        title_match = TITLE_PATTERN.search(content)
+-        if title_match:
+-            title_text = title_match.group(1).strip()
+-            if title_text:
+-                has_title = True
+-                title_content = title_text
++        # Check 3: Title (capture the first file's title)
++        if not has_title:
++            title_match = TITLE_PATTERN.search(content)
++            if title_match:
++                title_text = title_match.group(1).strip()
++                if title_text:
++                    has_title = True
++                    title_content = title_text
+ 
+         # Check 4: Meta description
+         if META_DESC_PATTERN.search(content) or META_DESC_PATTERN_ALT.search(content):
+diff --git a/scan/file_finder.py b/scan/file_finder.py
+index 7641b4d..0bf6409 100644
+--- a/scan/file_finder.py
++++ b/scan/file_finder.py
+@@ -8,7 +8,7 @@ Respects v1.3 hard constraints: max 100 files, excluded directories, prioritized
+ """
+ 
+ from pathlib import Path
+-from typing import List
++from typing import Dict, List, Tuple
+ 
+ ALLOWED_EXTENSIONS = {".html", ".jsx", ".tsx"}
+ 
+@@ -29,12 +29,12 @@ MAX_FILES = 100
+ MAX_FILE_SIZE_BYTES = 50 * 1024  # 50KB
+ 
+ 
+-def find_source_files(repo_path: str) -> List[Path]:
++def find_source_files(repo_path: str) -> Tuple[List[Path], List[Dict]]:
+     """Find all scannable HTML/JSX/TSX files in the given repo path.
+ 
+-    Returns list of Path objects sorted by priority (src/app/pages/components first),
+-    capped at MAX_FILES. Skips symlinks, excluded dirs, oversized files, and
+-    paths containing '..'.
++    Returns a tuple of (files, skipped) where files is a list of Path objects
++    sorted by priority (src/app/pages/components first), capped at MAX_FILES,
++    and skipped is a list of dicts with path and reason for each skipped file.
+     """
+     root = Path(repo_path).resolve()
+ 
+@@ -91,6 +91,10 @@ def find_source_files(repo_path: str) -> List[Path]:
+         else:
+             other_files.append(path)
+ 
++    # Sort within groups for deterministic ordering across platforms.
++    priority_files.sort(key=lambda p: str(p))
++    other_files.sort(key=lambda p: str(p))
++
+     # Priority dirs first, then others. Cap at MAX_FILES.
+     all_files = priority_files + other_files
+ 
+@@ -100,4 +104,5 @@ def find_source_files(repo_path: str) -> List[Path]:
+             "reason": f"file_limit_exceeded: {len(all_files)} found, capped at {MAX_FILES}",
+         })
+ 
+-    return all_files[:MAX_FILES]
++    files_capped = len(all_files) > MAX_FILES
++    return all_files[:MAX_FILES], skipped
+diff --git a/scan/scanner.py b/scan/scanner.py
+index 1700404..e488747 100644
+--- a/scan/scanner.py
++++ b/scan/scanner.py
+@@ -6,11 +6,12 @@ One file, one job: orchestration.
+ """
+ 
+ import json
++import logging
+ import sys
+ from datetime import datetime, timezone
+ from pathlib import Path
+ 
+-from scan.file_finder import find_source_files
++from scan.file_finder import find_source_files, MAX_FILES
+ from scan.check_semantic_html import check_semantic_html
+ from scan.check_form_accessibility import check_form_accessibility
+ from scan.check_aria import check_aria
+@@ -19,6 +20,8 @@ from scan.check_content_in_html import check_content_in_html
+ from scan.check_link_navigation import check_link_navigation
+ from scan.scoring import calculate_total_score, get_score_rating, get_category_breakdown
+ 
++logger = logging.getLogger(__name__)
++
+ 
+ def run_scan(repo_path: str) -> dict:
+     """Run the full Hermes Clew scan on a repository.
+@@ -27,9 +30,16 @@ def run_scan(repo_path: str) -> dict:
+         repo_path: Path to the repository root to scan.
+ 
+     Returns:
+-        Dict with total_score, rating, file_count, categories, and breakdown.
++        Dict with total_score, rating, file_count, categories, breakdown,
++        skipped_files, and files_capped.
+     """
+-    files = find_source_files(repo_path)
++    files, skipped = find_source_files(repo_path)
++
++    logger.info("Files found: %d", len(files))
++    if skipped:
++        logger.info("Files skipped: %d", len(skipped))
++        for entry in skipped:
++            logger.debug("Skipped: %s — %s", entry["path"], entry["reason"])
+ 
+     categories = {
+         "semantic_html": check_semantic_html(files),
+@@ -44,11 +54,17 @@ def run_scan(repo_path: str) -> dict:
+     rating = get_score_rating(total_score)
+     breakdown = get_category_breakdown(categories)
+ 
++    for cat_name, info in breakdown.items():
++        logger.info("Category %s: %d/%d", cat_name, info["earned"], info["max"])
++    logger.info("Total score: %d — %s", total_score, rating)
++
+     return {
+         "project_path": str(repo_path),
+         "scan_date": datetime.now(timezone.utc).isoformat(),
+         "file_count": len(files),
+         "files_scanned": [str(f.name) for f in files],
++        "skipped_files": skipped,
++        "files_capped": len(files) >= MAX_FILES and len(skipped) > 0,
+         "total_score": total_score,
+         "rating": rating,
+         "breakdown": breakdown,
+diff --git a/scan/scoring.py b/scan/scoring.py
+index e85e910..be6cd3d 100644
+--- a/scan/scoring.py
++++ b/scan/scoring.py
+@@ -28,8 +28,11 @@ def calculate_total_score(category_results: Dict[str, Dict]) -> int:
+ 
+     Each category: (passed / total) * weight_points.
+     Categories with 0 total checks are skipped (don't penalize for N/A).
++    Scores are normalized to 100 based on applicable weight so that
++    projects with N/A categories can still achieve a perfect score.
+     """
+-    total = 0
++    earned = 0
++    applicable_weight = 0
+ 
+     for category, result in category_results.items():
+         if category not in WEIGHTS:
+@@ -42,16 +45,22 @@ def calculate_total_score(category_results: Dict[str, Dict]) -> int:
+         if total_checks == 0:
+             continue
+ 
++        applicable_weight += max_points
+         category_score = (passed / total_checks) * max_points
+-        total += category_score
++        earned += category_score
+ 
+-    return round(total)
++    if applicable_weight == 0:
++        return 0
++
++    # Normalize to 100 so N/A categories don't cap the score
++    return round((earned / applicable_weight) * 100)
+ 
+ 
+ def get_score_rating(score: int) -> str:
+     """Return the human-readable rating for a given score."""
++    clamped = max(0, min(100, score))
+     for _key, (low, high, label) in SCORE_RANGES.items():
+-        if low <= score <= high:
++        if low <= clamped <= high:
+             return label
+     return "Unknown"
+ 
+diff --git a/tests/test_check_form_accessibility.py b/tests/test_check_form_accessibility.py
+index c06120d..ada5a26 100644
+--- a/tests/test_check_form_accessibility.py
++++ b/tests/test_check_form_accessibility.py
+@@ -50,3 +50,40 @@ def test_findings_have_required_keys():
+         assert "check" in finding
+         assert "passed" in finding
+         assert "detail" in finding
++
++
++def test_jsx_htmlfor_recognized(tmp_path):
++    """JSX htmlFor attribute should be recognized as a label association."""
++    f = tmp_path / "form.jsx"
++    f.write_text(
++        '<form>\n'
++        '  <label htmlFor="email">Email</label>\n'
++        '  <input type="email" id="email" name="email" required />\n'
++        '  <button type="submit">Submit</button>\n'
++        '</form>\n'
++    )
++    result = check_form_accessibility([f])
++    label_finding = [f for f in result["findings"] if f["check"] == "input_labels"]
++    assert any(f["passed"] for f in label_finding), "htmlFor should be recognized as label"
++
++
++def test_no_cross_file_wrapped_label(tmp_path):
++    """A <label> in file A should not match an <input> in file B."""
++    file_a = tmp_path / "a.html"
++    file_a.write_text(
++        '<form>\n'
++        '  <label>Name\n'  # label opens in file A — no closing </label> with input
++        '</form>\n'
++    )
++    file_b = tmp_path / "b.html"
++    file_b.write_text(
++        '<form>\n'
++        '  <input type="text" name="user">\n'  # input in file B — no wrapping label
++        '  </label>\n'
++        '  <button type="submit">Go</button>\n'
++        '</form>\n'
++    )
++    result = check_form_accessibility([file_a, file_b])
++    label_finding = [f for f in result["findings"] if f["check"] == "input_labels"]
++    # The input in file B has no label — should NOT be counted as labeled
++    assert any(not f["passed"] for f in label_finding), "Cross-file label match should not happen"
+diff --git a/tests/test_check_link_navigation.py b/tests/test_check_link_navigation.py
+index 9d659ad..694e68f 100644
+--- a/tests/test_check_link_navigation.py
++++ b/tests/test_check_link_navigation.py
+@@ -57,3 +57,37 @@ def test_findings_have_required_keys():
+         assert "check" in finding
+         assert "passed" in finding
+         assert "detail" in finding
++
++
++def test_jsx_dynamic_href_recognized(tmp_path):
++    """JSX href={variable} should be recognized as a valid href."""
++    f = tmp_path / "links.jsx"
++    f.write_text(
++        '<nav>\n'
++        '  <a href={item.url}>Product page</a>\n'
++        '  <a href={`/orders/${order.id}`}>View order</a>\n'
++        '</nav>\n'
++    )
++    result = check_link_navigation([f])
++    href_findings = [f for f in result["findings"] if f["check"] == "link_has_href" and not f["passed"]]
++    # Neither link should be flagged as missing href
++    per_file = [f for f in href_findings if "file" in f]
++    assert len(per_file) == 0, "JSX href={} should not be flagged as missing"
++
++
++def test_substring_generic_link_text(tmp_path):
++    """Generic text like 'Click Here for Details' should be caught by substring match."""
++    f = tmp_path / "links.html"
++    f.write_text(
++        '<nav>\n'
++        '  <a href="/a">Click Here for Details</a>\n'
++        '  <a href="/b">Learn More About Pricing</a>\n'
++        '  <a href="/c">Actual Descriptive Link</a>\n'
++        '</nav>\n'
++    )
++    result = check_link_navigation([f])
++    generic_per_file = [
++        f for f in result["findings"]
++        if f["check"] == "descriptive_link_text" and not f["passed"] and "file" in f
++    ]
++    assert len(generic_per_file) == 2, "Should catch 'Click Here for...' and 'Learn More About...'"
+diff --git a/tests/test_file_finder.py b/tests/test_file_finder.py
+index 787b592..9d94bd6 100644
+--- a/tests/test_file_finder.py
++++ b/tests/test_file_finder.py
+@@ -5,7 +5,7 @@ import tempfile
+ from pathlib import Path
+ 
+ import pytest
+-from scan.file_finder import find_source_files, ALLOWED_EXTENSIONS, EXCLUDED_DIRS, MAX_FILES
++from scan.file_finder import find_source_files, ALLOWED_EXTENSIONS, EXCLUDED_DIRS, MAX_FILES, MAX_FILE_SIZE_BYTES
+ 
+ 
+ @pytest.fixture
+@@ -36,7 +36,7 @@ def temp_repo(tmp_path):
+ 
+ 
+ def test_finds_html_jsx_tsx(temp_repo):
+-    files = find_source_files(str(temp_repo))
++    files, _ = find_source_files(str(temp_repo))
+     names = {f.name for f in files}
+     assert "index.html" in names
+     assert "App.jsx" in names
+@@ -45,25 +45,25 @@ def test_finds_html_jsx_tsx(temp_repo):
+ 
+ 
+ def test_excludes_node_modules(temp_repo):
+-    files = find_source_files(str(temp_repo))
++    files, _ = find_source_files(str(temp_repo))
+     for f in files:
+         assert "node_modules" not in f.parts
+ 
+ 
+ def test_excludes_dist(temp_repo):
+-    files = find_source_files(str(temp_repo))
++    files, _ = find_source_files(str(temp_repo))
+     for f in files:
+         assert "dist" not in f.parts
+ 
+ 
+ def test_excludes_git(temp_repo):
+-    files = find_source_files(str(temp_repo))
++    files, _ = find_source_files(str(temp_repo))
+     for f in files:
+         assert ".git" not in f.parts
+ 
+ 
+ def test_excludes_non_matching_extensions(temp_repo):
+-    files = find_source_files(str(temp_repo))
++    files, _ = find_source_files(str(temp_repo))
+     names = {f.name for f in files}
+     assert "readme.md" not in names
+     assert "styles.css" not in names
+@@ -77,7 +77,7 @@ def test_invalid_path_raises():
+ 
+ def test_priority_dirs_first(temp_repo):
+     """Files in src/ and components/ should appear before root-level files."""
+-    files = find_source_files(str(temp_repo))
++    files, _ = find_source_files(str(temp_repo))
+     names = [f.name for f in files]
+     # Priority dirs (src, components) should come before root files
+     priority_names = {"App.jsx", "Page.tsx", "Button.jsx"}
+@@ -85,11 +85,11 @@ def test_priority_dirs_first(temp_repo):
+     root_indices = [i for i, n in enumerate(names) if n == "index.html"]
+ 
+     if priority_indices and root_indices:
+-        assert max(priority_indices) < min(root_indices) or len(priority_indices) > 0
++        assert max(priority_indices) < min(root_indices)
+ 
+ 
+ def test_empty_directory(tmp_path):
+-    files = find_source_files(str(tmp_path))
++    files, _ = find_source_files(str(tmp_path))
+     assert files == []
+ 
+ 
+@@ -98,5 +98,69 @@ def test_max_files_cap(tmp_path):
+     for i in range(MAX_FILES + 20):
+         (tmp_path / f"file_{i:04d}.html").write_text(f"<html>{i}</html>")
+ 
+-    files = find_source_files(str(tmp_path))
++    files, _ = find_source_files(str(tmp_path))
+     assert len(files) <= MAX_FILES
++
++
++def test_returns_skipped_list(temp_repo):
++    """find_source_files returns a tuple of (files, skipped)."""
++    files, skipped = find_source_files(str(temp_repo))
++    assert isinstance(files, list)
++    assert isinstance(skipped, list)
++
++
++# --- P2-4: Security tests ---
++
++
++def test_symlink_rejection(tmp_path):
++    """Symlinks to files outside the repo should be skipped."""
++    # Create a real file outside the repo
++    outside = tmp_path / "outside"
++    outside.mkdir()
++    target = outside / "secret.html"
++    target.write_text("<html>secret</html>")
++
++    # Create repo dir with a symlink pointing outside
++    repo = tmp_path / "repo"
++    repo.mkdir()
++    (repo / "legit.html").write_text("<html>legit</html>")
++    os.symlink(str(target), str(repo / "evil.html"))
++
++    files, skipped = find_source_files(str(repo))
++    names = {f.name for f in files}
++    assert "legit.html" in names
++    assert "evil.html" not in names
++    # Verify it was recorded as skipped
++    symlink_skipped = [s for s in skipped if s["reason"] == "symlink"]
++    assert len(symlink_skipped) >= 1
++
++
++def test_oversized_file_rejection(tmp_path):
++    """Files exceeding MAX_FILE_SIZE_BYTES should be skipped."""
++    (tmp_path / "small.html").write_text("<html>small</html>")
++    # Create an oversized file (just over the limit)
++    big_content = "x" * (MAX_FILE_SIZE_BYTES + 1)
++    (tmp_path / "huge.html").write_text(big_content)
++
++    files, skipped = find_source_files(str(tmp_path))
++    names = {f.name for f in files}
++    assert "small.html" in names
++    assert "huge.html" not in names
++    # Verify it was recorded as skipped
++    oversized_skipped = [s for s in skipped if s["reason"] == "exceeds_50kb"]
++    assert len(oversized_skipped) >= 1
++
++
++def test_path_traversal_rejection(tmp_path):
++    """Paths containing '..' components should be rejected."""
++    # We can't easily create a filesystem path with '..' via rglob,
++    # but we can verify the security check exists by testing that
++    # files resolved outside root are rejected via the relative_to check.
++    (tmp_path / "safe.html").write_text("<html>safe</html>")
++    files, skipped = find_source_files(str(tmp_path))
++    names = {f.name for f in files}
++    assert "safe.html" in names
++    # All returned files should resolve within root
++    root = Path(tmp_path).resolve()
++    for f in files:
++        assert f.resolve().is_relative_to(root)
+diff --git a/tests/test_integration.py b/tests/test_integration.py
+index b2f19c5..28b0f1e 100644
+--- a/tests/test_integration.py
++++ b/tests/test_integration.py
+@@ -18,6 +18,8 @@ REQUIRED_TOP_KEYS = {
+     "scan_date",
+     "file_count",
+     "files_scanned",
++    "skipped_files",
++    "files_capped",
+     "total_score",
+     "rating",
+     "breakdown",
+@@ -137,6 +139,12 @@ class TestFullPipeline:
+         assert isinstance(self.result["project_path"], str)
+         assert len(self.result["project_path"]) > 0
+ 
++    def test_skipped_files_is_list(self):
++        assert isinstance(self.result["skipped_files"], list)
++
++    def test_files_capped_is_bool(self):
++        assert isinstance(self.result["files_capped"], bool)
++
+ 
+ class TestScanFindsFixtureFiles:
+     """Verify the scanner finds the expected fixture files."""
+diff --git a/tests/test_report_prompt.py b/tests/test_report_prompt.py
+new file mode 100644
+index 0000000..c3a9c25
+--- /dev/null
++++ b/tests/test_report_prompt.py
+@@ -0,0 +1,94 @@
++"""Tests for scan.report_prompt"""
++
++from scan.report_prompt import build_reasoning_prompt
++
++
++def test_build_prompt_renders_without_error():
++    """Smoke test: build_reasoning_prompt should not raise with minimal input."""
++    scan_result = {
++        "total_score": 72,
++        "file_count": 5,
++        "categories": {
++            "semantic_html": {
++                "category": "semantic_html",
++                "passed": 4,
++                "total": 6,
++                "findings": [
++                    {"check": "nav_element", "passed": True, "detail": "Nav found."},
++                ],
++            },
++            "form_accessibility": {
++                "category": "form_accessibility",
++                "passed": 0,
++                "total": 0,
++                "findings": [],
++            },
++            "aria": {
++                "category": "aria",
++                "passed": 3,
++                "total": 4,
++                "findings": [],
++            },
++            "structured_data": {
++                "category": "structured_data",
++                "passed": 2,
++                "total": 4,
++                "findings": [],
++            },
++            "content_in_html": {
++                "category": "content_in_html",
++                "passed": 2,
++                "total": 3,
++                "findings": [],
++            },
++            "link_navigation": {
++                "category": "link_navigation",
++                "passed": 3,
++                "total": 3,
++                "findings": [],
++            },
++        },
++    }
++    prompt = build_reasoning_prompt(scan_result, project_name="Test Project", scan_date="2026-01-01")
++    assert isinstance(prompt, str)
++    assert len(prompt) > 100
++
++
++def test_prompt_contains_expected_sections():
++    """The rendered prompt should include key report template sections."""
++    scan_result = {
++        "total_score": 50,
++        "file_count": 3,
++        "categories": {
++            "semantic_html": {"category": "semantic_html", "passed": 3, "total": 6, "findings": []},
++            "form_accessibility": {"category": "form_accessibility", "passed": 2, "total": 5, "findings": []},
++            "aria": {"category": "aria", "passed": 1, "total": 4, "findings": []},
++            "structured_data": {"category": "structured_data", "passed": 1, "total": 4, "findings": []},
++            "content_in_html": {"category": "content_in_html", "passed": 1, "total": 3, "findings": []},
++            "link_navigation": {"category": "link_navigation", "passed": 1, "total": 3, "findings": []},
++        },
++    }
++    prompt = build_reasoning_prompt(scan_result, project_name="My App")
++    assert "Agent Readiness Report" in prompt
++    assert "Category" in prompt or "category" in prompt
++    assert "What's Working" in prompt
++    assert "My App" in prompt
++
++
++def test_prompt_with_zero_score():
++    """Prompt should render even with all-zero scores."""
++    scan_result = {
++        "total_score": 0,
++        "file_count": 0,
++        "categories": {
++            "semantic_html": {"category": "semantic_html", "passed": 0, "total": 0, "findings": []},
++            "form_accessibility": {"category": "form_accessibility", "passed": 0, "total": 0, "findings": []},
++            "aria": {"category": "aria", "passed": 0, "total": 0, "findings": []},
++            "structured_data": {"category": "structured_data", "passed": 0, "total": 0, "findings": []},
++            "content_in_html": {"category": "content_in_html", "passed": 0, "total": 0, "findings": []},
++            "link_navigation": {"category": "link_navigation", "passed": 0, "total": 0, "findings": []},
++        },
++    }
++    prompt = build_reasoning_prompt(scan_result)
++    assert isinstance(prompt, str)
++    assert "0" in prompt
+diff --git a/tests/test_scanner.py b/tests/test_scanner.py
+new file mode 100644
+index 0000000..a2898b8
+--- /dev/null
++++ b/tests/test_scanner.py
+@@ -0,0 +1,46 @@
++"""Tests for scan.scanner CLI entry point"""
++
++import json
++import subprocess
++import sys
++import os
++
++import pytest
++
++FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
++
++
++def test_main_invalid_path_exits_nonzero():
++    """main() with an invalid path should write to stderr and exit non-zero."""
++    result = subprocess.run(
++        [sys.executable, "-m", "scan.scanner", "/nonexistent/path"],
++        capture_output=True,
++        text=True,
++    )
++    assert result.returncode != 0
++    assert result.stderr.strip() != ""
++
++
++def test_main_no_args_exits_nonzero():
++    """main() with no arguments should print usage to stderr."""
++    result = subprocess.run(
++        [sys.executable, "-m", "scan.scanner"],
++        capture_output=True,
++        text=True,
++    )
++    assert result.returncode != 0
++    assert "Usage" in result.stderr
++
++
++def test_main_valid_path_produces_json():
++    """main() with a valid path should produce valid JSON to stdout."""
++    result = subprocess.run(
++        [sys.executable, "-m", "scan.scanner", FIXTURES_DIR],
++        capture_output=True,
++        text=True,
++    )
++    assert result.returncode == 0
++    data = json.loads(result.stdout)
++    assert "total_score" in data
++    assert "categories" in data
++    assert "skipped_files" in data
+diff --git a/tests/test_scoring.py b/tests/test_scoring.py
+index 8776a56..e8d9b35 100644
+--- a/tests/test_scoring.py
++++ b/tests/test_scoring.py
+@@ -30,19 +30,20 @@ def test_zero_score():
+ 
+ def test_partial_score():
+     results = {
+-        "semantic_html": {"passed": 3, "total": 6},     # 12.5
+-        "form_accessibility": {"passed": 0, "total": 5}, # 0
+-        "aria": {"passed": 2, "total": 4},               # 7.5
+-        "structured_data": {"passed": 1, "total": 4},    # 3.75
+-        "content_in_html": {"passed": 1, "total": 3},    # 5
+-        "link_navigation": {"passed": 3, "total": 3},    # 10
++        "semantic_html": {"passed": 3, "total": 6},     # 50% of 25 = 12.5
++        "form_accessibility": {"passed": 0, "total": 5}, # 0% of 20 = 0
++        "aria": {"passed": 2, "total": 4},               # 50% of 15 = 7.5
++        "structured_data": {"passed": 1, "total": 4},    # 25% of 15 = 3.75
++        "content_in_html": {"passed": 1, "total": 3},    # 33% of 15 = 5
++        "link_navigation": {"passed": 3, "total": 3},    # 100% of 10 = 10
+     }
++    # earned = 38.75 out of applicable 100 → normalized = 39
+     score = calculate_total_score(results)
+-    assert 35 <= score <= 42  # ~38.75
++    assert 35 <= score <= 42  # ~39
+ 
+ 
+ def test_empty_categories_skipped():
+-    """Categories with 0 total checks should not penalize."""
++    """Categories with 0 total checks should not penalize — score normalizes to 100."""
+     results = {
+         "semantic_html": {"passed": 6, "total": 6},
+         "form_accessibility": {"passed": 0, "total": 0},  # N/A
+@@ -51,8 +52,34 @@ def test_empty_categories_skipped():
+         "content_in_html": {"passed": 3, "total": 3},
+         "link_navigation": {"passed": 3, "total": 3},
+     }
+-    # Should get 25 + 0 + 15 + 0 + 15 + 10 = 65
+-    assert calculate_total_score(results) == 65
++    # All applicable categories are perfect → normalized to 100
++    assert calculate_total_score(results) == 100
++
++
++def test_na_categories_normalize_to_100():
++    """A JSX-only project scoring perfectly on applicable categories gets 100."""
++    results = {
++        "semantic_html": {"passed": 6, "total": 6},
++        "form_accessibility": {"passed": 5, "total": 5},
++        "aria": {"passed": 4, "total": 4},
++        "structured_data": {"passed": 0, "total": 0},     # N/A (JSX-only)
++        "content_in_html": {"passed": 0, "total": 0},     # N/A (JSX-only)
++        "link_navigation": {"passed": 3, "total": 3},
++    }
++    assert calculate_total_score(results) == 100
++
++
++def test_all_na_returns_zero():
++    """If all categories are N/A, return 0."""
++    results = {
++        "semantic_html": {"passed": 0, "total": 0},
++        "form_accessibility": {"passed": 0, "total": 0},
++        "aria": {"passed": 0, "total": 0},
++        "structured_data": {"passed": 0, "total": 0},
++        "content_in_html": {"passed": 0, "total": 0},
++        "link_navigation": {"passed": 0, "total": 0},
++    }
++    assert calculate_total_score(results) == 0
+ 
+ 
+ def test_score_rating():
+@@ -62,6 +89,12 @@ def test_score_rating():
+     assert "Agent-Invisible" in get_score_rating(20)
+ 
+ 
++def test_score_rating_clamping():
++    """Scores >100 or <0 should be clamped before lookup."""
++    assert "Agent-Ready" in get_score_rating(150)
++    assert "Agent-Invisible" in get_score_rating(-10)
++
++
+ def test_category_breakdown():
+     results = {
+         "semantic_html": {"passed": 6, "total": 6},
+-- 
+2.43.0
