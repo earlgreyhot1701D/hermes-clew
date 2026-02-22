@@ -50,3 +50,40 @@ def test_findings_have_required_keys():
         assert "check" in finding
         assert "passed" in finding
         assert "detail" in finding
+
+
+def test_jsx_htmlfor_recognized(tmp_path):
+    """JSX htmlFor attribute should be recognized as a label association."""
+    f = tmp_path / "form.jsx"
+    f.write_text(
+        '<form>\n'
+        '  <label htmlFor="email">Email</label>\n'
+        '  <input type="email" id="email" name="email" required />\n'
+        '  <button type="submit">Submit</button>\n'
+        '</form>\n'
+    )
+    result = check_form_accessibility([f])
+    label_finding = [f for f in result["findings"] if f["check"] == "input_labels"]
+    assert any(f["passed"] for f in label_finding), "htmlFor should be recognized as label"
+
+
+def test_no_cross_file_wrapped_label(tmp_path):
+    """A <label> in file A should not match an <input> in file B."""
+    file_a = tmp_path / "a.html"
+    file_a.write_text(
+        '<form>\n'
+        '  <label>Name\n'  # label opens in file A — no closing </label> with input
+        '</form>\n'
+    )
+    file_b = tmp_path / "b.html"
+    file_b.write_text(
+        '<form>\n'
+        '  <input type="text" name="user">\n'  # input in file B — no wrapping label
+        '  </label>\n'
+        '  <button type="submit">Go</button>\n'
+        '</form>\n'
+    )
+    result = check_form_accessibility([file_a, file_b])
+    label_finding = [f for f in result["findings"] if f["check"] == "input_labels"]
+    # The input in file B has no label — should NOT be counted as labeled
+    assert any(not f["passed"] for f in label_finding), "Cross-file label match should not happen"

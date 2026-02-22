@@ -57,3 +57,37 @@ def test_findings_have_required_keys():
         assert "check" in finding
         assert "passed" in finding
         assert "detail" in finding
+
+
+def test_jsx_dynamic_href_recognized(tmp_path):
+    """JSX href={variable} should be recognized as a valid href."""
+    f = tmp_path / "links.jsx"
+    f.write_text(
+        '<nav>\n'
+        '  <a href={item.url}>Product page</a>\n'
+        '  <a href={`/orders/${order.id}`}>View order</a>\n'
+        '</nav>\n'
+    )
+    result = check_link_navigation([f])
+    href_findings = [f for f in result["findings"] if f["check"] == "link_has_href" and not f["passed"]]
+    # Neither link should be flagged as missing href
+    per_file = [f for f in href_findings if "file" in f]
+    assert len(per_file) == 0, "JSX href={} should not be flagged as missing"
+
+
+def test_substring_generic_link_text(tmp_path):
+    """Generic text like 'Click Here for Details' should be caught by substring match."""
+    f = tmp_path / "links.html"
+    f.write_text(
+        '<nav>\n'
+        '  <a href="/a">Click Here for Details</a>\n'
+        '  <a href="/b">Learn More About Pricing</a>\n'
+        '  <a href="/c">Actual Descriptive Link</a>\n'
+        '</nav>\n'
+    )
+    result = check_link_navigation([f])
+    generic_per_file = [
+        f for f in result["findings"]
+        if f["check"] == "descriptive_link_text" and not f["passed"] and "file" in f
+    ]
+    assert len(generic_per_file) == 2, "Should catch 'Click Here for...' and 'Learn More About...'"

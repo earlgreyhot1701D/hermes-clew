@@ -18,6 +18,8 @@ REQUIRED_TOP_KEYS = {
     "scan_date",
     "file_count",
     "files_scanned",
+    "skipped_files",
+    "files_capped",
     "total_score",
     "rating",
     "breakdown",
@@ -136,6 +138,12 @@ class TestFullPipeline:
     def test_project_path_present(self):
         assert isinstance(self.result["project_path"], str)
         assert len(self.result["project_path"]) > 0
+
+    def test_skipped_files_is_list(self):
+        assert isinstance(self.result["skipped_files"], list)
+
+    def test_files_capped_is_bool(self):
+        assert isinstance(self.result["files_capped"], bool)
 
 
 class TestScanFindsFixtureFiles:

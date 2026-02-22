@@ -6,11 +6,12 @@ One file, one job: orchestration.
 """
 
 import json
+import logging
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from scan.file_finder import find_source_files
+from scan.file_finder import find_source_files, MAX_FILES
 from scan.check_semantic_html import check_semantic_html
 from scan.check_form_accessibility import check_form_accessibility
 from scan.check_aria import check_aria
@@ -18,6 +19,8 @@ from scan.check_structured_data import check_structured_data
 from scan.check_content_in_html import check_content_in_html
 from scan.check_link_navigation import check_link_navigation
 from scan.scoring import calculate_total_score, get_score_rating, get_category_breakdown
+
+logger = logging.getLogger(__name__)
 
 
 def run_scan(repo_path: str) -> dict:
@@ -27,9 +30,16 @@ def run_scan(repo_path: str) -> dict:
         repo_path: Path to the repository root to scan.
 
     Returns:
-        Dict with total_score, rating, file_count, categories, and breakdown.
+        Dict with total_score, rating, file_count, categories, breakdown,
+        skipped_files, and files_capped.
     """
-    files = find_source_files(repo_path)
+    files, skipped = find_source_files(repo_path)
+
+    logger.info("Files found: %d", len(files))
+    if skipped:
+        logger.info("Files skipped: %d", len(skipped))
+        for entry in skipped:
+            logger.debug("Skipped: %s — %s", entry["path"], entry["reason"])
 
     categories = {
         "semantic_html": check_semantic_html(files),
@@ -44,11 +54,17 @@ def run_scan(repo_path: str) -> dict:
     rating = get_score_rating(total_score)
     breakdown = get_category_breakdown(categories)
 
+    for cat_name, info in breakdown.items():
+        logger.info("Category %s: %d/%d", cat_name, info["earned"], info["max"])
+    logger.info("Total score: %d — %s", total_score, rating)
+
     return {
         "project_path": str(repo_path),
         "scan_date": datetime.now(timezone.utc).isoformat(),
         "file_count": len(files),
         "files_scanned": [str(f.name) for f in files],
+        "skipped_files": skipped,
+        "files_capped": len(files) >= MAX_FILES and len(skipped) > 0,
         "total_score": total_score,
         "rating": rating,
         "breakdown": breakdown,

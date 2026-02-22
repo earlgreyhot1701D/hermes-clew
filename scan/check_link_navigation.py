@@ -18,19 +18,24 @@ ANCHOR_PATTERN = re.compile(
 )
 
 # Generic/vague link text patterns (case-insensitive match against inner text)
-GENERIC_LINK_TEXT = {
-    "click here",
+# Short single words are matched exactly; multi-word phrases use startswith
+# so "Learn More About Pricing" is caught but "Actual Descriptive Link" is not.
+GENERIC_LINK_TEXT_EXACT = {
     "here",
-    "learn more",
-    "read more",
     "more",
     "link",
     "this",
     "go",
 }
+GENERIC_LINK_TEXT_PREFIX = [
+    "click here",
+    "learn more",
+    "read more",
+]
 
-# href attribute
+# href attribute (HTML quotes and JSX curly braces)
 HREF_PATTERN = re.compile(r'\bhref\s*=\s*["\']([^"\']*)["\']', re.IGNORECASE)
+HREF_JSX_PATTERN = re.compile(r'\bhref\s*=\s*\{', re.IGNORECASE)
 
 # Anchor with onClick but no href (JS-only navigation)
 ANCHOR_ONCLICK_NO_HREF = re.compile(
@@ -88,7 +93,12 @@ def check_link_navigation(files: List[Path]) -> Dict:
             link_text = _extract_text(inner_html).lower()
 
             # Check 1: Generic link text
-            if link_text in GENERIC_LINK_TEXT:
+            # Exact match for short words, startswith for multi-word phrases
+            is_generic = (
+                link_text in GENERIC_LINK_TEXT_EXACT
+                or any(link_text.startswith(prefix) for prefix in GENERIC_LINK_TEXT_PREFIX)
+            )
+            if is_generic:
                 generic_text_links += 1
                 findings.append({
                     "check": "descriptive_link_text",
@@ -99,7 +109,8 @@ def check_link_navigation(files: List[Path]) -> Dict:
 
             # Check 2: href attribute
             href_match = HREF_PATTERN.search(attrs)
-            if not href_match:
+            has_jsx_href = HREF_JSX_PATTERN.search(attrs)
+            if not href_match and not has_jsx_href:
                 links_without_href += 1
                 findings.append({
                     "check": "link_has_href",
@@ -107,7 +118,7 @@ def check_link_navigation(files: List[Path]) -> Dict:
                     "detail": f"{fname}: <a> tag without href attribute. Agents can't follow this link.",
                     "file": fname,
                 })
-            elif href_match.group(1).strip().lower() in NONFUNCTIONAL_HREFS:
+            elif href_match and href_match.group(1).strip().lower() in NONFUNCTIONAL_HREFS:
                 links_with_nonfunctional_href += 1
                 findings.append({
                     "check": "link_has_href",

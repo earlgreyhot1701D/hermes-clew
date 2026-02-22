@@ -91,13 +91,14 @@ def check_structured_data(files: List[Path]) -> Dict:
             has_og_tags = True
             og_count += len(og_matches)
 
-        # Check 3: Title
-        title_match = TITLE_PATTERN.search(content)
-        if title_match:
-            title_text = title_match.group(1).strip()
-            if title_text:
-                has_title = True
-                title_content = title_text
+        # Check 3: Title (capture the first file's title)
+        if not has_title:
+            title_match = TITLE_PATTERN.search(content)
+            if title_match:
+                title_text = title_match.group(1).strip()
+                if title_text:
+                    has_title = True
+                    title_content = title_text
 
         # Check 4: Meta description
         if META_DESC_PATTERN.search(content) or META_DESC_PATTERN_ALT.search(content):

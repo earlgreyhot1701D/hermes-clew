@@ -8,7 +8,7 @@ Respects v1.3 hard constraints: max 100 files, excluded directories, prioritized
 """
 
 from pathlib import Path
-from typing import List
+from typing import Dict, List, Tuple
 
 ALLOWED_EXTENSIONS = {".html", ".jsx", ".tsx"}
 
@@ -29,12 +29,12 @@ MAX_FILES = 100
 MAX_FILE_SIZE_BYTES = 50 * 1024  # 50KB
 
 
-def find_source_files(repo_path: str) -> List[Path]:
+def find_source_files(repo_path: str) -> Tuple[List[Path], List[Dict]]:
     """Find all scannable HTML/JSX/TSX files in the given repo path.
 
-    Returns list of Path objects sorted by priority (src/app/pages/components first),
-    capped at MAX_FILES. Skips symlinks, excluded dirs, oversized files, and
-    paths containing '..'.
+    Returns a tuple of (files, skipped) where files is a list of Path objects
+    sorted by priority (src/app/pages/components first), capped at MAX_FILES,
+    and skipped is a list of dicts with path and reason for each skipped file.
     """
     root = Path(repo_path).resolve()
 
@@ -91,6 +91,10 @@ def find_source_files(repo_path: str) -> List[Path]:
         else:
             other_files.append(path)
 
+    # Sort within groups for deterministic ordering across platforms.
+    priority_files.sort(key=lambda p: str(p))
+    other_files.sort(key=lambda p: str(p))
+
     # Priority dirs first, then others. Cap at MAX_FILES.
     all_files = priority_files + other_files
 
@@ -100,4 +104,5 @@ def find_source_files(repo_path: str) -> List[Path]:
             "reason": f"file_limit_exceeded: {len(all_files)} found, capped at {MAX_FILES}",
         })
 
-    return all_files[:MAX_FILES]
+    files_capped = len(all_files) > MAX_FILES
+    return all_files[:MAX_FILES], skipped
