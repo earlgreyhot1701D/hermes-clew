@@ -24,7 +24,35 @@ It lives inside GitLab Duo Chat. You talk to it, it scans, it reports. No fronte
 
 > *"Awareness, not judgment."* — Hermes Clew explains problems like a knowledgeable colleague, not a compliance auditor.
 
-**Part of the Clew suite:** Ariadne Clew | Janus Clew | Lumen Clew | Metis Clew | Hermes Clew
+**Part of the Clew suite:** Ariadne Clew | Janus Clew | Lumen Clew | Metis Clew | Anton Clew | Memoria Clew | Clew Quest | Clew Directive 
+
+---
+
+## Using Hermes Clew
+
+### Step 1: Open your project in GitLab
+Navigate to any GitLab project that contains HTML, JSX, or TSX files.
+
+### Step 2: Open Duo Chat
+Click the Duo Chat icon in the right sidebar.
+
+### Step 3: Select the Hermes Clew agent
+In the chat dropdown, select "Hermes Clew — Agent Readiness Scanner."
+
+### Step 4: Ask it to scan
+Type:
+
+> Scan this project for agent readiness
+
+### Step 5: Read your report
+Hermes Clew reads your HTML/JSX/TSX files, scores them across 6 categories, 
+and returns an Agent Readiness Report that includes:
+
+- **Overall score** (0-100) with a rating (Agent-Ready, Partially Ready, Agent-Challenged, or Agent-Invisible)
+- **Category breakdown** showing what agents can and can't do in your app
+- **What's working** — what agents handle well
+- **What agents struggle with** — told as stories from the agent's perspective
+- **Suggested fixes** — ranked by impact, with effort estimates and code examples
 
 ---
 
@@ -112,14 +140,6 @@ Reduce false positives/negatives, prioritize fixes, and output the report in the
 SCAN JSON:
 <paste contents of hermes_clew_scan_results.json here>
 ```
-
-### Use via GitLab Duo Chat
-
-1. Open GitLab Duo Chat in a project containing HTML/JSX/TSX files
-2. Select the Hermes Clew agent
-3. Say: "Scan this project"
-4. Read the Agent Readiness Report
-
 ---
 
 ## Project Structure
