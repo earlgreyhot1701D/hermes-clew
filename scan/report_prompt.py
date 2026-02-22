@@ -157,14 +157,18 @@ Each includes: what the agent tries, what goes wrong, why, the fix, and score im
 ## Suggested Fixes (Smallest Changes, Biggest Impact)
 [Ranked by impact. Plain English + generic code example + effort + score improvement.]
 
----
+> ⚠️ **Review before applying.** These are suggestions, not auto-applied changes.
+> Test each fix in your development environment before committing to your repo.
 
 ## Confidence Notes
-[Limitations, false positive suspicions, caveats]
+[Always start with: "Anthropic Claude reasoning applied to identify false positives,
+assess severity, and generate plain-English explanations across all 6 categories."]
+[Then add any limitations, false positive suspicions, caveats]
 
 ---
 
 *Hermes Clew — Awareness, not judgment. Built for the agentic web.*
+*Reasoning powered by Anthropic Claude via GitLab Duo.*
 
 ## Rules
 - Do NOT reproduce source code from the scanned files in the report.
