@@ -2,6 +2,32 @@
 
 **Agent Readiness Scanner for the Agentic Web**
 
+---
+
+## The Problem
+
+The web is about to get a second audience. AI agents — not just humans — are starting to browse, navigate, and interact with web applications. They book flights, fill out forms, extract data, and complete tasks on behalf of users.
+
+But most web apps weren't built for them.
+
+Vibecoded apps ship fast, but they ship with div-soup, missing labels, generic link text, and zero structured data. A human can squint past these issues. An AI agent can't. It sees a wall of `<div onclick="...">` and has no idea what's a button, what's a link, or what's a heading.
+
+**The result:** agents fail silently. They can't navigate. They can't fill forms. They bounce. And the developer has no idea why — because the app looks fine to a human.
+
+There's no tool that tells developers: *"Here's how an AI agent sees your app, and here's what to fix."*
+
+## The Solution
+
+Hermes Clew scans HTML, JSX, and TSX files in a GitLab repository and produces an **Agent Readiness Report** — a score from 0 to 100 that tells you exactly how well an AI agent can use your application, broken down across 6 categories, with plain-English explanations of what's working, what's broken, and what to fix first.
+
+It lives inside GitLab Duo Chat. You talk to it, it scans, it reports. No frontend. No UI. No database.
+
+> *"Awareness, not judgment."* — Hermes Clew explains problems like a knowledgeable colleague, not a compliance auditor.
+
+**Part of the Clew suite:** Ariadne Clew | Janus Clew | Lumen Clew | Metis Clew | Hermes Clew
+
+---
+
 Hermes Clew scans HTML, JSX, and TSX files in a GitLab repository and reports how well the application would perform in the agentic web — where AI agents, not humans, are the primary users of the internet.
 
 It is a **tool**, not an app. No frontend. No UI. No database. It lives inside GitLab Duo Chat. You talk to it, it scans, it reports.
