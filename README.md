@@ -70,6 +70,27 @@ pip install pytest
 pytest tests/ -v
 ```
 
+## CI → Duo workflow (Deterministic scan + LLM reasoning)
+
+### 1) Run the deterministic scan in GitLab CI
+Push any commit to trigger the pipeline.
+
+In GitLab:
+Build → Pipelines → latest pipeline → `hermes_clew_scan` job → Artifacts
+
+Download:
+`hermes_clew_scan_results.json`
+
+### 2) Generate the final Agent Readiness Report in Duo
+Open GitLab Duo Chat in this project and paste:
+
+Hermes Clew: Use the following deterministic scan JSON as authoritative input.
+Reduce false positives/negatives, prioritize fixes, and output the report in the strict Hermes Clew format.
+
+SCAN JSON:
+<paste contents of hermes_clew_scan_results.json here>
+```
+
 ### Use via GitLab Duo Chat
 
 1. Open GitLab Duo Chat in a project containing HTML/JSX/TSX files
