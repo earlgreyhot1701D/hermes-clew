@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head><title>Bad Form</title></head>
+<body>
+    <div class="form-area">
+        <span>Full Name</span>
+        <input placeholder="Enter name">
+
+        <span>Email</span>
+        <input placeholder="Enter email">
+
+        <span>Phone</span>
+        <input placeholder="Enter phone">
+
+        <span>Message</span>
+        <div contenteditable="true" class="textarea-fake"></div>
+
+        <span>Topic</span>
+        <div class="custom-select" onclick="toggleDropdown()">General</div>
+
+        <div class="btn" onclick="submitForm()">Send Message</div>
+    </div>
+
+    <div class="newsletter">
+        <span>Email</span>
+        <input placeholder="your@email.com">
+        <div class="btn" onclick="subscribe()">Subscribe</div>
+    </div>
+</body>
+</html>

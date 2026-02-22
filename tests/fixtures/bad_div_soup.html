@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+</head>
+<body>
+    <div class="navbar">
+        <div class="nav-item" onclick="goHome()">Home</div>
+        <div class="nav-item" onclick="goAbout()">About</div>
+        <div class="nav-item" onclick="goContact()">Contact</div>
+    </div>
+
+    <div class="content">
+        <div class="title" style="font-size: 32px; font-weight: bold;">Welcome</div>
+        <div class="subtitle" style="font-size: 24px;">Our Services</div>
+
+        <div class="list">
+            <div class="list-item">Web Development</div>
+            <div class="list-item">Design Consulting</div>
+            <div class="list-item">AI Integration</div>
+        </div>
+
+        <div class="form-area">
+            <span class="label-text">Email Address</span>
+            <input type="text" placeholder="Enter email">
+
+            <span class="label-text">Select Plan</span>
+            <div class="custom-select" onclick="toggleDropdown()">Free</div>
+
+            <div class="btn" onclick="submitForm()">Sign Up</div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <span>&copy; 2026 Example Corp</span>
+    </div>
+</body>
+</html>

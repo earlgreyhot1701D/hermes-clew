@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Good ARIA Example</title>
+</head>
+<body>
+    <main>
+        <h1>Dashboard</h1>
+
+        <div role="tablist" aria-label="Settings tabs">
+            <button role="tab" aria-selected="true" aria-controls="panel-general">General</button>
+            <button role="tab" aria-selected="false" aria-controls="panel-security">Security</button>
+        </div>
+
+        <div id="panel-general" role="tabpanel" aria-labelledby="tab-general">
+            <p>General settings content here.</p>
+        </div>
+
+        <div aria-live="polite" id="notifications">
+            <p>Settings saved successfully.</p>
+        </div>
+
+        <img src="/logo.png" alt="Company logo">
+        <img src="/chart.png" alt="Monthly revenue chart showing growth trend">
+
+        <button aria-label="Close dialog">
+            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+
+        <button aria-label="Search">
+            <img src="/icons/search.svg" alt="">
+        </button>
+    </main>
+</body>
+</html>

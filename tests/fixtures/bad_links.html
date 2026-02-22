@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head><title>Bad Links</title></head>
+<body>
+    <div class="navbar">
+        <a onclick="goHome()">click here</a>
+        <a onclick="goProducts()">learn more</a>
+        <a onclick="goPricing()">read more</a>
+        <a href="#">click here</a>
+        <a href="javascript:void(0)" onclick="goContact()">here</a>
+    </div>
+
+    <div class="content">
+        <div class="big-text">Welcome</div>
+        <p>For products, <a href="#">click here</a>. To learn more,
+           <a onclick="navigate('/docs')">click here</a>.</p>
+
+        <div class="resources">
+            <div><a href="#">Read more</a></div>
+            <div><a href="#">Learn more</a></div>
+            <div><span onclick="goChangelog()">See changes</span></div>
+        </div>
+    </div>
+</body>
+</html>

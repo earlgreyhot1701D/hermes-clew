@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head><title>Bad ARIA</title></head>
+<body>
+    <div class="page">
+        <div class="tabs">
+            <div class="tab active" onclick="showPanel('general')">General</div>
+            <div class="tab" onclick="showPanel('security')">Security</div>
+        </div>
+
+        <div id="panel-general">
+            <p>General settings content here.</p>
+        </div>
+
+        <div id="notifications">
+            <p>Settings saved successfully.</p>
+        </div>
+
+        <img src="/logo.png">
+        <img src="/chart.png">
+
+        <div class="icon-btn" onclick="closeDialog()">
+            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </div>
+
+        <div class="icon-btn" onclick="search()">
+            <img src="/icons/search.svg">
+        </div>
+    </div>
+</body>
+</html>
