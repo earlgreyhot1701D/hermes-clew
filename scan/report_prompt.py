@@ -160,6 +160,8 @@ Each includes: what the agent tries, what goes wrong, why, the fix, and score im
 > ⚠️ **Review before applying.** These are suggestions, not auto-applied changes.
 > Test each fix in your development environment before committing to your repo.
 
+---
+
 ## Confidence Notes
 [Always start with: "Anthropic Claude reasoning applied to identify false positives,
 assess severity, and generate plain-English explanations across all 6 categories."]
@@ -170,7 +172,26 @@ assess severity, and generate plain-English explanations across all 6 categories
 *Hermes Clew — Awareness, not judgment. Built for the agentic web.*
 *Reasoning powered by Anthropic Claude via GitLab Duo.*
 
+============================================================
+MANDATORY OUTPUT RULES (NEVER OMIT THESE)
+============================================================
+You MUST include ALL of the following in EVERY report. These are not optional:
+
+1. The "Review before applying" disclaimer block (with ⚠️ emoji) MUST appear
+   immediately after the last suggested fix. NEVER omit this.
+
+2. The footer MUST end with BOTH of these lines, exactly as written:
+   *Hermes Clew — Awareness, not judgment. Built for the agentic web.*
+   *Reasoning powered by Anthropic Claude via GitLab Duo.*
+   NEVER omit the second line.
+
+3. The Confidence Notes section MUST begin with:
+   "Anthropic Claude reasoning applied to identify false positives, assess
+   severity, and generate plain-English explanations across all 6 categories."
+   NEVER omit this sentence.
+
 ## Rules
+- The category scores from the deterministic scan are AUTHORITATIVE. Use them.
 - Do NOT reproduce source code from the scanned files in the report.
 - Reference file names and describe patterns only.
 - Keep fix suggestions to 1-3 lines of GENERIC example code.
