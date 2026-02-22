@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0",
+  "agents": {
+    "agents/agent.yml": {
+      "catalog_id": "gid://gitlab/Ai::Catalog::Item/1003645",
+      "name": "Hermes Clew — Agent Readiness Scanner",
+      "created_at": "2026-02-22T02:40:31.972Z",
+      "item_consumers": {
+        "group": {
+          "id": "gid://gitlab/Ai::Catalog::ItemConsumer/4349385"
+        },
+        "project": {
+          "id": "gid://gitlab/Ai::Catalog::ItemConsumer/4349386"
+        }
+      },
+      "latest_sync": {
+        "git_tag": "v1",
+        "catalog_version": "1.0.0",
+        "synced_at": "2026-02-22T02:40:31.972Z",
+        "definition_hash": "fdb9a9854a3c6b3b"
+      }
+    }
+  },
+  "flows": {
+    "flows/flow.yml": {
+      "catalog_id": "gid://gitlab/Ai::Catalog::Item/1003646",
+      "name": "Hermes Clew — Agent Readiness Flow",
+      "created_at": "2026-02-22T02:40:32.941Z",
+      "item_consumers": {
+        "group": {
+          "id": "gid://gitlab/Ai::Catalog::ItemConsumer/4349387"
+        },
+        "project": {
+          "id": "gid://gitlab/Ai::Catalog::ItemConsumer/4349388"
+        }
+      },
+      "latest_sync": {
+        "git_tag": "v1",
+        "catalog_version": "1.0.0",
+        "synced_at": "2026-02-22T02:40:32.941Z",
+        "definition_hash": "a79b0421056d1acc"
+      }
+    }
+  }
+}
