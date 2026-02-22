@@ -12,18 +12,19 @@ variables:
 
 before_script:
   - python --version
+  - pip install -r requirements.txt --quiet
 
 unit_tests:
   stage: test
   script:
-    - python -m unittest -q
+    - python -m pytest tests/ -v --tb=short
   rules:
     - when: always
 
 hermes_clew_scan:
   stage: scan
   script:
-    - python -m scan.scanner . > hermes_clew_scan_results.json
+    - python -m scan.scanner demo-app/ > hermes_clew_scan_results.json
     - python -c "import json; json.load(open('hermes_clew_scan_results.json')); print('scan JSON valid')"
   artifacts:
     when: always

@@ -34,7 +34,7 @@ Hermes Clew uses a three-layer architecture:
 
 1. **GitLab Duo Agent** (Interface) — Receives your request via Duo Chat, identifies files, triggers the scan, posts the report.
 2. **Python Scan Engine** (Mechanical) — Finds HTML/JSX/TSX files, runs 6 category checks via pattern matching, produces raw JSON findings. No reasoning, no judgment — just facts.
-3. **Claude Reasoning Layer** (Anthropic) — Receives raw findings, reasons about context and false positives, weighs severity, generates a plain-English report with an Agent Readiness Score (0-100).
+3. **Reasoning Layer** (via GitLab Duo's built-in Anthropic model) — Receives raw findings, reasons about context and false positives, weighs severity, generates a plain-English report with an Agent Readiness Score (0-100).
 
 ---
 
@@ -65,6 +65,12 @@ Hermes Clew uses a three-layer architecture:
 - Python 3.10+
 - pytest (for running tests)
 - GitLab account with access to the AI Hackathon group (for Duo Chat integration)
+
+### Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
 
 ### Run the Scanner Locally
 
@@ -123,9 +129,12 @@ hermes-clew/
 ├── AGENTS.md                          # Describes project to any AI agent
 ├── README.md                          # This file
 ├── LICENSE                            # MIT
-├── .gitlab/
-│   └── duo/
-│       └── agent-config.yml           # GitLab Duo agent configuration
+├── requirements.txt                   # Python dependencies
+├── .gitlab-ci.yml                     # CI pipeline — runs tests + scanner
+├── agents/
+│   └── agent.yml                      # GitLab Duo agent configuration
+├── flows/
+│   └── flow.yml                       # GitLab Duo flow configuration
 ├── scan/
 │   ├── __init__.py
 │   ├── scanner.py                     # Entry point — orchestrates checks
@@ -137,7 +146,7 @@ hermes-clew/
 │   ├── check_link_navigation.py       # Category 6 checks
 │   ├── file_finder.py                 # Finds HTML/JSX/TSX files
 │   ├── scoring.py                     # Applies weights, computes score
-│   ├── report_prompt.py               # Builds Claude reasoning prompt
+│   ├── report_prompt.py               # Builds reasoning prompt for Duo agent
 │   └── external_url.py               # STUB: Path B external scanning
 ├── tests/
 │   ├── test_check_semantic_html.py
@@ -172,6 +181,20 @@ hermes-clew/
 
 ---
 
+## Known Limitations
+
+**JSX/TSX parsing is heuristic, not AST-based.** The scanner uses regex and string matching, not a JavaScript parser. This means:
+- Custom React components (e.g., `<Button>`) that render to semantic HTML at build time may be flagged incorrectly
+- Spread props (`{...props}`) may include ARIA attributes the scanner can't see
+- Conditional rendering may produce semantic HTML at runtime that isn't visible in source
+- CSS-in-JS wrapper divs may be flagged as div-soup
+
+The reasoning layer (Anthropic Claude via GitLab Duo) is explicitly tasked with catching these false positives and noting them in the Confidence Notes section of every report.
+
+**Source-only scanning.** Hermes Clew scans source files, not rendered DOM. A React SPA with excellent client-side rendering may score lower than expected because content lives in JavaScript state, not HTML source. This is noted as a low-confidence category (Content in HTML) in every report.
+
+---
+
 ## Roadmap (Post-Hackathon)
 
 - External URL scanning (GitHub repos, deployed URLs)
@@ -188,9 +211,9 @@ hermes-clew/
 Built for the **GitLab Duo Agent Platform Challenge** (2026). Targets the Anthropic prize track.
 
 - **Trigger:** User message in Duo Chat
-- **Action:** Scans files, runs analysis, invokes Claude, posts report
+- **Action:** Scans files, runs analysis, reasons via GitLab Duo (Anthropic), posts report
 - **Platform:** GitLab Duo Agent Platform
-- **AI:** Anthropic Claude (via GitLab integration)
+- **AI:** Anthropic Claude (via GitLab Duo integration)
 
 ---
 
