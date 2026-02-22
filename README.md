@@ -28,16 +28,6 @@ It lives inside GitLab Duo Chat. You talk to it, it scans, it reports. No fronte
 
 ---
 
-Hermes Clew scans HTML, JSX, and TSX files in a GitLab repository and reports how well the application would perform in the agentic web — where AI agents, not humans, are the primary users of the internet.
-
-It is a **tool**, not an app. No frontend. No UI. No database. It lives inside GitLab Duo Chat. You talk to it, it scans, it reports.
-
-> "Hermes Clew tells you whether an AI agent can use your app, and explains in plain English what to fix."
-
-**Part of the Clew suite:** Ariadne Clew | Janus Clew | Lumen Clew | Metis Clew | Hermes Clew
-
----
-
 ## How It Works
 
 Hermes Clew uses a three-layer architecture:
