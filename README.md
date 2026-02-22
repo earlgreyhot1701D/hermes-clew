@@ -132,10 +132,16 @@ hermes-clew/
 │   ├── test_check_link_navigation.py
 │   ├── test_file_finder.py
 │   ├── test_scoring.py
+│   ├── test_integration.py            # End-to-end pipeline test
 │   └── fixtures/                      # Hand-written test HTML/JSX files
-└── demo/
-    ├── demo_repos.md                  # Demo repos and expected scores
-    └── scan_results/                  # Pre-generated results (backup)
+├── demo-app/                          # Sample app for scan demo (FreshCart)
+│   ├── index.html                     # Landing page — mixed good/bad patterns
+│   ├── login-form.html                # Form with accessibility gaps
+│   └── Dashboard.jsx                  # React component — div-soup + good sections
+└── docs/
+    ├── PRD_HERMES_CLEW.md             # Product requirements document
+    ├── ARCHITECTURE.md                # System architecture overview
+    └── SPIKE_RESULTS.md               # Platform capability validation
 ```
 
 ---
