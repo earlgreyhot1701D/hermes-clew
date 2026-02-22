@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FreshCart — Sign In</title>
+    <meta name="description" content="Sign in to your FreshCart account to order groceries online.">
+    <!-- GOOD: has title and meta description -->
+    <!-- BAD: no OG tags, no Schema.org -->
+</head>
+<body>
+
+    <header>
+        <h1>FreshCart</h1>
+        <nav>
+            <a href="/">Home</a>
+            <a href="/products">Products</a>
+            <a href="/cart">My Cart</a>
+        </nav>
+    </header>
+
+    <main>
+        <h2>Sign In to Your Account</h2>
+
+        <!-- BAD: no <form> wrapper around inputs -->
+        <div class="login-container">
+
+            <!-- BAD: input without associated <label> -->
+            <input type="email" placeholder="Email address">
+
+            <!-- BAD: input without label, missing name attribute -->
+            <input placeholder="Password">
+            <!-- BAD: no type attribute on password field -->
+            <!-- BAD: no name attribute -->
+
+            <!-- BAD: no required attribute on either field -->
+            <!-- BAD: no aria-required -->
+
+            <!-- BAD: div used as button instead of <button> or <input type="submit"> -->
+            <div class="btn-login" onclick="submitLogin()">
+                Sign In
+            </div>
+        </div>
+
+        <div class="forgot-password">
+            <!-- BAD: anchor without href -->
+            <a onclick="showResetModal()">Forgot your password?</a>
+        </div>
+
+        <div class="signup-prompt">
+            <p>Don't have an account?</p>
+            <!-- GOOD: proper link with href and descriptive text -->
+            <a href="/signup">Create a free FreshCart account</a>
+        </div>
+
+        <!-- BAD: image without alt text -->
+        <img src="/images/secure-checkout-badge.png">
+
+        <!-- BAD: icon-only button without aria-label -->
+        <button onclick="togglePasswordVisibility()">
+            <svg viewBox="0 0 24 24"><path d="M12 5c-7 0-11 7-11 7s4 7 11 7 11-7 11-7-4-7-11-7z"/></svg>
+        </button>
+
+        <!-- BAD: dynamic content area without aria-live -->
+        <div class="error-messages" id="login-errors">
+            <!-- Error messages injected by JS -->
+        </div>
+
+    </main>
+
+    <footer>
+        <p>&copy; 2026 FreshCart</p>
+    </footer>
+
+</body>
+</html>

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FreshCart — Grocery Delivery</title>
+    <!-- GOOD: has title -->
+    <!-- BAD: no meta description, no OG tags, no Schema.org JSON-LD -->
+</head>
+<body>
+
+    <!-- GOOD: uses semantic <header> -->
+    <header>
+        <h1>FreshCart</h1>
+        <!-- GOOD: uses <nav> -->
+        <nav>
+            <a href="/products">Products</a>
+            <a href="/deals">Today's Deals</a>
+            <a href="/cart">My Cart</a>
+            <a href="/account">Account</a>
+        </nav>
+    </header>
+
+    <!-- GOOD: uses <main> -->
+    <main>
+        <section>
+            <h2>Fresh Groceries, Delivered Fast</h2>
+            <p>Order from local stores and get everything delivered to your door in under an hour. Fresh produce, pantry staples, and household essentials.</p>
+
+            <!-- BAD: div with onClick instead of <button> -->
+            <div class="hero-cta" onclick="window.location='/products'">
+                Start Shopping
+            </div>
+        </section>
+
+        <section>
+            <h2>How It Works</h2>
+            <!-- BAD: divs used as list items instead of <ul>/<li> -->
+            <div class="step">1. Browse products from local stores</div>
+            <div class="step">2. Add items to your cart</div>
+            <div class="step">3. Choose a delivery window</div>
+            <div class="step">4. Enjoy fresh groceries at your door</div>
+        </section>
+
+        <section>
+            <h2>Popular Categories</h2>
+            <!-- MIXED: good links with href, but some have generic text -->
+            <a href="/products/produce">Fresh Produce</a>
+            <a href="/products/dairy">Dairy & Eggs</a>
+            <a href="/products/bakery">Bakery</a>
+            <a href="/products/meat">Learn more</a>  <!-- BAD: generic link text -->
+            <a href="/products/snacks">Click here</a>  <!-- BAD: generic link text -->
+        </section>
+
+        <!-- GOOD: noscript fallback -->
+        <noscript>
+            <p>FreshCart requires JavaScript to browse products. Please enable JavaScript or visit our <a href="/static-catalog">static catalog</a>.</p>
+        </noscript>
+    </main>
+
+    <!-- GOOD: semantic <footer> -->
+    <footer>
+        <p>&copy; 2026 FreshCart. All rights reserved.</p>
+        <a href="/privacy">Privacy Policy</a>
+        <a href="/terms">Terms of Service</a>
+    </footer>
+
+</body>
+</html>
