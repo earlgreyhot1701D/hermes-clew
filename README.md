@@ -134,6 +134,7 @@ Download:
 ### 2) Generate the final Agent Readiness Report in Duo
 Open GitLab Duo Chat in this project and paste:
 
+```
 Hermes Clew: Use the following deterministic scan JSON as authoritative input.
 Reduce false positives/negatives, prioritize fixes, and output the report in the strict Hermes Clew format.
 
