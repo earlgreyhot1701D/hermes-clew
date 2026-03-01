@@ -244,4 +244,6 @@ MIT — see [LICENSE](LICENSE)
 
 ---
 
+*This project was built with AI assistance (Claude, ChatGPT, GitLab IDE AI). All output was human-reviewed, validated, and directed. All mistakes are mine.*
+
 *Hermes Clew — Awareness, not judgment. Built for the agentic web.*
